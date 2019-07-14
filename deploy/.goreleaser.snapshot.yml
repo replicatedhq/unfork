@@ -1,0 +1,29 @@
+project_name: unfork
+release:
+  github:
+    owner: replicatedhq
+    name: unfork
+builds:
+  - id: unfork
+  - goos:
+    - linux
+    - windows
+    - darwin
+    goarch:
+    - amd64
+    - "386"
+    env:
+      - CGO_ENABLED=0
+      - GO111MODULE=on
+    main: cmd/unfork/main.go
+    ldflags: -s -w
+      -X github.com/replicatedhq/unfork/pkg/version.version={{.Version}}
+      -X github.com/replicatedhq/unfork/pkg/version.gitSHA={{.Commit}}
+      -X github.com/replicatedhq/unfork/pkg/version.buildTime={{.Date}}
+      -extldflags "-static"
+    flags: -tags netgo -installsuffix netgo
+    binary: unfork
+    hooks: {}
+
+snapshot:
+  name_template: SNAPSHOT-{{ .Commit }}
