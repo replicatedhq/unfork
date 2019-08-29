@@ -5,6 +5,8 @@ import (
 
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
+	"github.com/pkg/errors"
+
 	"github.com/replicatedhq/unfork/pkg/chartindex"
 	"github.com/replicatedhq/unfork/pkg/unforker"
 )
@@ -76,7 +78,7 @@ func (h *Home) render() error {
 	if !h.isListening {
 		h.isListening = true
 
-		go func() error {
+		go func() {
 			for {
 				select {
 				case uiEvent := <-h.uiCh:
@@ -106,14 +108,19 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 		if h.showUnfork {
 			h.showUnfork = false
 			ui.Clear()
-			h.render()
+			err := h.render()
+			if err != nil {
+				return false, errors.Wrapf(err, "render event %q", e.ID)
+			}
 		} else {
 			return true, nil
 		}
 	case "<Resize>":
 		ui.Clear()
-		h.render()
-		break
+		err := h.render()
+		if err != nil {
+			return false, errors.Wrapf(err, "render event %q", e.ID)
+		}
 	case "<Down>", "s":
 		if h.focusPane == "charts" {
 			if h.selectedChartIndex == -1 {
@@ -148,14 +155,23 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 		if h.focusPane == "charts" {
 			h.focusPane = "upstreams"
 			ui.Clear()
-			h.render()
+			err := h.render()
+			if err != nil {
+				return false, errors.Wrapf(err, "render event %q", e.ID)
+			}
 		}
 	case "<Left>", "a":
 		if h.focusPane == "upstreams" {
 			h.focusPane = "charts"
 			ui.Clear()
-			h.render()
-			h.highlightChart()
+			err := h.render()
+			if err != nil {
+				return false, errors.Wrapf(err, "render event %q", e.ID)
+			}
+			err = h.highlightChart()
+			if err != nil {
+				return false, errors.Wrapf(err, "highlight event %q", e.ID)
+			}
 		}
 	case "<Enter>":
 		if h.focusPane == "upstreams" {
@@ -165,7 +181,10 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 
 			h.showUnfork = true
 			ui.Clear()
-			h.render()
+			err := h.render()
+			if err != nil {
+				return false, errors.Wrapf(err, "render event %q", e.ID)
+			}
 		}
 	}
 
@@ -174,7 +193,10 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 
 func (h *Home) highlightChart() error {
 	ui.Clear()
-	h.render()
+	err := h.render()
+	if err != nil {
+		return errors.Wrapf(err, "render chart to highlight")
+	}
 
 	for i := range h.chartsTable.Rows {
 		if i == 0 {

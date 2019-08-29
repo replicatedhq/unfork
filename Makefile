@@ -31,6 +31,10 @@ fmt:
 vet:
 	go vet ./pkg/... ./cmd/...
 
+.PHONY: lint
+lint:
+	golangci-lint run pkg/... cmd/...
+
 .PHONY: snapshot-release
 snapshot-release:
 	curl -sL https://git.io/goreleaser | bash -s -- --rm-dist --snapshot --config deploy/.goreleaser.snapshot.yml
