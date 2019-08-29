@@ -8,7 +8,7 @@ type SimilarityMatch struct {
 }
 
 // Helm doesn't store the upstream source in the cluster or in tiller
-// and forks are even harder... so find the most similar involves calcularing
+// and forks are even harder... so find the most similar involves calculating
 // a similarity score and going that way
 func calculateSimilarityWithMetadata(localChart *LocalChart, publishedChart *PublishedChart) (bool, error) {
 	// If the name, chart version and app version are identical, let's call it match early

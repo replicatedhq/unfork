@@ -35,7 +35,6 @@ func (i *ChartIndex) Save(filename string) error {
 func (i *ChartIndex) Build() error {
 	charts := []MonocularChartData{}
 
-	totalPages := 1
 	currentPage := 1
 
 	fmt.Printf("requesting repos from monocular\n")
@@ -56,8 +55,7 @@ func (i *ChartIndex) Build() error {
 			return err
 		}
 
-		totalPages = monocularResponse.Meta.TotalPages
-		if currentPage > totalPages {
+		if currentPage > monocularResponse.Meta.TotalPages {
 			break
 		}
 

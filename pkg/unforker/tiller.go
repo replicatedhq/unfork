@@ -56,7 +56,7 @@ func (u *Unforker) queryTillerForCharts(tillerPodName string, tillerNamespace st
 		return nil, err
 	}
 
-	tillerCharts := make([]*LocalChart, 0, 0)
+	tillerCharts := make([]*LocalChart, 0)
 	for _, tillerRelease := range response.Releases {
 		chart := LocalChart{
 			IsTiller:     true,

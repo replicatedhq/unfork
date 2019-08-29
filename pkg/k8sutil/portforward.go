@@ -46,12 +46,10 @@ func PortForward(kubeContext string, localPort int, remotePort int, namespace st
 		}
 	}()
 
-	go func() error {
+	go func() {
 		if err = forwarder.ForwardPorts(); err != nil { // Locks until stopChan is closed.
 			panic(err)
 		}
-
-		return nil
 	}()
 
 	// // Block until the new service is responding, limited to (math) seconds
