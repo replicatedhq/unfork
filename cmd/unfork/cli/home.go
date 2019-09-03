@@ -30,6 +30,7 @@ type Home struct {
 	selectedChartIndex    int
 	selectedUpstreamIndex int
 	showUnfork            bool
+	isUnforking           bool
 
 	focusPane string
 }
@@ -122,68 +123,73 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 			return false, errors.Wrapf(err, "render event %q", e.ID)
 		}
 	case "<Down>", "s":
-		if h.focusPane == "charts" {
-			if h.selectedChartIndex == -1 {
-				h.selectedChartIndex = 1
-			} else if h.selectedChartIndex < len(h.chartsTable.Rows)-1 {
-				h.selectedChartIndex++
-			} else {
-				h.selectedChartIndex = 1
+		if !h.showUnfork {
+			if h.focusPane == "charts" {
+				if h.selectedChartIndex == -1 {
+					h.selectedChartIndex = 1
+				} else if h.selectedChartIndex < len(h.chartsTable.Rows)-1 {
+					h.selectedChartIndex++
+				} else {
+					h.selectedChartIndex = 1
+				}
+				if err := h.highlightChart(); err != nil {
+					return false, err
+				}
+			} else if h.focusPane == "upstreams" {
+				h.highlightNextUpstream()
 			}
-			if err := h.highlightChart(); err != nil {
-				return false, err
-			}
-		} else if h.focusPane == "upstreams" {
-			h.highlightNextUpstream()
 		}
 	case "<Up>", "w":
-		if h.focusPane == "charts" {
-			if h.selectedChartIndex == -1 {
-				h.selectedChartIndex = 1
-			} else if h.selectedChartIndex > 1 {
-				h.selectedChartIndex--
-			} else {
-				h.selectedChartIndex = len(h.chartsTable.Rows) - 1
+		if !h.showUnfork {
+			if h.focusPane == "charts" {
+				if h.selectedChartIndex == -1 {
+					h.selectedChartIndex = 1
+				} else if h.selectedChartIndex > 1 {
+					h.selectedChartIndex--
+				} else {
+					h.selectedChartIndex = len(h.chartsTable.Rows) - 1
+				}
+				if err := h.highlightChart(); err != nil {
+					return false, err
+				}
+			} else if h.focusPane == "upstreams" {
+				h.highlightPreviousUpstream()
 			}
-			if err := h.highlightChart(); err != nil {
-				return false, err
-			}
-		} else if h.focusPane == "upstreams" {
-			h.highlightPreviousUpstream()
 		}
 	case "<Right>", "d":
-		if h.focusPane == "charts" {
-			h.focusPane = "upstreams"
-			ui.Clear()
-			err := h.render()
-			if err != nil {
-				return false, errors.Wrapf(err, "render event %q", e.ID)
+		if !h.showUnfork {
+			if h.focusPane == "charts" {
+				h.focusPane = "upstreams"
+				ui.Clear()
+				h.render()
 			}
 		}
 	case "<Left>", "a":
-		if h.focusPane == "upstreams" {
-			h.focusPane = "charts"
-			ui.Clear()
-			err := h.render()
-			if err != nil {
-				return false, errors.Wrapf(err, "render event %q", e.ID)
-			}
-			err = h.highlightChart()
-			if err != nil {
-				return false, errors.Wrapf(err, "highlight event %q", e.ID)
+		if !h.showUnfork {
+			if h.focusPane == "upstreams" {
+				h.focusPane = "charts"
+				ui.Clear()
+				h.render()
+				h.highlightChart()
 			}
 		}
 	case "<Enter>":
-		if h.focusPane == "upstreams" {
-			if h.selectedUpstreamIndex == 0 {
-				break
-			}
+		if h.showUnfork {
+			localChart := h.localCharts[h.selectedChartIndex-1]
+			upstreamChart := h.upstreamMatches[h.selectedUpstreamIndex-1]
 
-			h.showUnfork = true
-			ui.Clear()
-			err := h.render()
-			if err != nil {
-				return false, errors.Wrapf(err, "render event %q", e.ID)
+			if err := unforker.Unfork(localChart, upstreamChart); err != nil {
+				panic(err)
+			}
+		} else {
+			if h.focusPane == "upstreams" {
+				if h.selectedUpstreamIndex == 0 {
+					break
+				}
+
+				h.showUnfork = true
+				ui.Clear()
+				h.render()
 			}
 		}
 	}
@@ -243,7 +249,7 @@ func (h *Home) narrowCharts() [][]string {
 }
 
 func (h *Home) highlightNextUpstream() {
-	if h.selectedUpstreamIndex < len(h.upstreamMatches)-1 {
+	if h.selectedUpstreamIndex < len(h.upstreamMatches) {
 		h.selectedUpstreamIndex++
 	} else {
 		h.selectedUpstreamIndex = 1
@@ -351,8 +357,50 @@ func (h *Home) drawUnfork() {
 	ourTop := 4
 	ourBottom := termHeight - 2
 
+	if ourRight-ourLeft > 200 {
+		ourLeft = termWidth/2 - 150
+		ourRight = termWidth/2 + 150
+	}
+
+	ourCenter := (ourLeft + ourRight) / 2
+
 	modal := widgets.NewParagraph()
 	modal.Border = true
 	modal.SetRect(ourLeft, ourTop, ourRight, ourBottom)
 	ui.Render(modal)
+
+	modalTitle := widgets.NewParagraph()
+	modalTitle.Text = "Unfork"
+	modalTitle.TextStyle.Fg = ui.ColorWhite
+	modalTitle.TextStyle.Bg = ui.ColorClear
+	modalTitle.TextStyle.Modifier = ui.ModifierBold
+	modalTitle.Border = false
+	modalTitle.SetRect(ourCenter-len(modalTitle.Text), ourTop+1, ourCenter+len(modalTitle.Text), ourTop+2)
+	ui.Render(modalTitle)
+
+	localChart := h.localCharts[h.selectedChartIndex-1]
+	upstreamChart := h.upstreamMatches[h.selectedUpstreamIndex-1]
+
+	whatsAboutToHappen := widgets.NewParagraph()
+	whatsAboutToHappen.Text = fmt.Sprintf(
+		`Press <Enter> to compare your local chart (%s@%s) with the upstream chart (%s/%s@%s) to create Kustomize compatible patches on disk`,
+		localChart.ChartName, localChart.ChartVersion,
+		upstreamChart.Repo, upstreamChart.Name, upstreamChart.ChartVersion)
+	whatsAboutToHappen.TextStyle.Fg = ui.ColorWhite
+	whatsAboutToHappen.TextStyle.Bg = ui.ColorClear
+	whatsAboutToHappen.Border = false
+	whatsAboutToHappen.SetRect(ourLeft+1, ourTop+4, ourRight-1, ourTop+8)
+	ui.Render(whatsAboutToHappen)
+
+	if h.isUnforking {
+		unforking := widgets.NewParagraph()
+		unforking.Text = "unforking"
+		unforking.TextStyle.Fg = ui.ColorGreen
+		unforking.TextStyle.Bg = ui.ColorClear
+		unforking.TextStyle.Modifier = ui.ModifierBold
+		unforking.Border = false
+		unforking.SetRect(ourCenter-len(modalTitle.Text), ourTop+12, ourCenter+len(modalTitle.Text), ourTop+13)
+		ui.Render(unforking)
+	}
+
 }
