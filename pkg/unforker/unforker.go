@@ -8,7 +8,6 @@ import (
 type Unforker struct {
 	kubecontext string
 	client      *kubernetes.Clientset
-	charts      map[*LocalChart][]*PublishedChart
 	uiCh        chan UIEvent
 }
 
@@ -25,7 +24,6 @@ func NewUnforker(kubecontext string, uiCh chan UIEvent) (*Unforker, error) {
 	u := &Unforker{
 		kubecontext: kubecontext,
 		client:      client,
-		charts:      make(map[*LocalChart][]*PublishedChart),
 		uiCh:        uiCh,
 	}
 
@@ -58,18 +56,8 @@ func (u *Unforker) findAndListChartsSync() error {
 				Payload:   localChart,
 			}
 			u.uiCh <- uiEvent
-			u.charts[localChart] = make([]*PublishedChart, 0)
 		}
 	}
 
 	return nil
-}
-
-func (u *Unforker) LocalChartAtIndex(idx int) (*LocalChart, []*PublishedChart, error) {
-	localCharts := make([]*LocalChart, 0)
-	for k := range u.charts {
-		localCharts = append(localCharts, k)
-	}
-
-	return localCharts[idx], u.charts[localCharts[idx]], nil
 }
