@@ -5,7 +5,7 @@ release:
     name: unfork
 builds:
   - id: unfork
-  - goos:
+    goos:
     - linux
     - windows
     - darwin
@@ -24,6 +24,21 @@ builds:
     flags: -tags netgo -installsuffix netgo
     binary: unfork
     hooks: {}
-
-snapshot:
-  name_template: SNAPSHOT-{{ .Commit }}
+archives:
+  - id: unfork
+    builds:
+      - unfork
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: '{{ .Binary }}_{{ .Os }}_{{ .Arch }}'
+    files:
+      - licence*
+      - LICENCE*
+      - license*
+      - LICENSE*
+      - readme*
+      - README*
+      - changelog*
+      - CHANGELOG*
