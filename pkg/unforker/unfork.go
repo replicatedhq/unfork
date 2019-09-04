@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	kotsk8sutil "github.com/replicatedhq/kots/pkg/k8sutil"
 	"github.com/replicatedhq/kots/pkg/pull"
 	kotsutil "github.com/replicatedhq/kots/pkg/util"
 	"github.com/replicatedhq/unfork/pkg/chartindex"
@@ -16,6 +17,7 @@ import (
 	"k8s.io/helm/pkg/proto/hapi/chart"
 	"k8s.io/helm/pkg/renderutil"
 	"k8s.io/helm/pkg/timeconv"
+	kustomizetypes "sigs.k8s.io/kustomize/v3/pkg/types"
 )
 
 func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) error {
@@ -64,14 +66,63 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 
 	// Unfork the content in forkedRoot from the base in the pull.  this will extract patches
 	// write them to downstreams/unforked
-	patches, err := createPatches(forkedRoot, path.Join(unforkPath, "base"))
+	resources, patches, err := createPatches(forkedRoot, path.Join(unforkPath, "base"))
 	if err != nil {
 		return errors.Wrap(err, "faield to create patches")
 	}
 
-	panic(fmt.Sprintf("%#v\n", patches))
+	unforkPatchDir := path.Join(unforkPath, "overlays", "downstreams", "unforked")
+	patchesForKustomization := []string{}
+	resourcesForKustomization := []string{}
 
-	// return nil
+	for filename, content := range resources {
+		filePath := path.Join(unforkPatchDir, filename)
+		d, f := path.Split(filePath)
+		if _, err := os.Stat(d); os.IsNotExist(err) {
+			if err := os.MkdirAll(d, 0755); err != nil {
+				return errors.Wrap(err, "failed to make dir")
+			}
+		}
+
+		if err := ioutil.WriteFile(path.Join(unforkPatchDir, filename), content, 0644); err != nil {
+			return errors.Wrap(err, "failed to write resource")
+		}
+
+		resourcesForKustomization = append(resourcesForKustomization, f)
+	}
+
+	for filename, content := range patches {
+		filePath := path.Join(unforkPatchDir, filename)
+		d, f := path.Split(filePath)
+		if _, err := os.Stat(d); os.IsNotExist(err) {
+			if err := os.MkdirAll(d, 0755); err != nil {
+				return errors.Wrap(err, "failed to make dir")
+			}
+		}
+
+		if err := ioutil.WriteFile(path.Join(unforkPatchDir, filename), content, 0644); err != nil {
+			return errors.Wrap(err, "failed to write patch")
+		}
+
+		patchesForKustomization = append(patchesForKustomization, f)
+	}
+
+	k, err := kotsk8sutil.ReadKustomizationFromFile(path.Join(unforkPatchDir, "kustomization.yaml"))
+	if err != nil {
+		return errors.Wrap(err, "failed to read kustomization")
+	}
+
+	for _, f := range patchesForKustomization {
+		k.PatchesStrategicMerge = append(k.PatchesStrategicMerge, kustomizetypes.PatchStrategicMerge(f))
+	}
+	for _, r := range resourcesForKustomization {
+		k.Resources = append(k.Resources, r)
+	}
+	if err := kotsk8sutil.WriteKustomizationToFile(k, path.Join(unforkPatchDir, "kustomization.yaml")); err != nil {
+		return errors.Wrap(err, "failed to write kustomization")
+	}
+
+	return nil
 }
 
 func renderChart(helmName string, namespace string, c *chart.Chart, templates []*chart.Template, values map[string]*chart.Value) (map[string]string, error) {

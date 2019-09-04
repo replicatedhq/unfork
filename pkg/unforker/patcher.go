@@ -27,7 +27,7 @@ type MinimalK8sMetadata struct {
 	Namespace string `json:"namespace" yaml:"namespace"`
 }
 
-func createPatches(forkedPath string, upstreamPath string) (map[string][]byte, error) {
+func createPatches(forkedPath string, upstreamPath string) (map[string][]byte, map[string][]byte, error) {
 	upstreamFiles := map[string][]byte{}
 	forkedFiles := map[string][]byte{}
 
@@ -87,10 +87,17 @@ func createPatches(forkedPath string, upstreamPath string) (map[string][]byte, e
 
 	// Walk all in the fork, creating patches as needed
 	patches := map[string][]byte{}
+	resources := map[string][]byte{}
 	for filename, content := range forkedFiles {
 		upstreamPath, err := findMatchingUpstreamPath(upstreamFiles, content)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to find upstream path")
+			return nil, nil, errors.Wrap(err, "failed to find upstream path")
+		}
+
+		if upstreamPath == "" {
+			_, n := path.Split(filename)
+			resources[n] = content
+			continue
 		}
 
 		patch, err := createTwoWayMergePatch(upstreamFiles[upstreamPath], content)
@@ -102,7 +109,7 @@ func createPatches(forkedPath string, upstreamPath string) (map[string][]byte, e
 
 		include, err := containsNonGVK(patch)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to check if should include patch")
+			return nil, nil, errors.Wrap(err, "failed to check if should include patch")
 		}
 
 		if include {
@@ -111,7 +118,7 @@ func createPatches(forkedPath string, upstreamPath string) (map[string][]byte, e
 		}
 	}
 
-	return patches, nil
+	return resources, patches, nil
 }
 
 func findMatchingUpstreamPath(upstreamFiles map[string][]byte, forkedContent []byte) (string, error) {
