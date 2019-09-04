@@ -28,7 +28,7 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 	}
 
 	pullOptions := pull.PullOptions{
-		Downstreams:         []string{"local"},
+		Downstreams:         []string{"unforked"},
 		ExcludeKotsKinds:    true,
 		RootDir:             unforkPath,
 		ExcludeAdminConsole: true,
@@ -61,6 +61,9 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 			return errors.Wrap(err, "failed to write file")
 		}
 	}
+
+	// Unfork the content in forkedRoot from the base in the pull.  this will extract patches
+	// write them to downstreams/unforked
 
 	return nil
 }
