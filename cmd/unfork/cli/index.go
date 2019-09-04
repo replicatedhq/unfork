@@ -11,9 +11,10 @@ import (
 
 func IndexCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "index",
-		Short: "Update the index",
-		Long:  ``,
+		Use:    "index",
+		Short:  "Update the index",
+		Long:   ``,
+		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			index := chartindex.ChartIndex{}
 			if err := index.Build(); err != nil {
