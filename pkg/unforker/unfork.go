@@ -64,8 +64,14 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 
 	// Unfork the content in forkedRoot from the base in the pull.  this will extract patches
 	// write them to downstreams/unforked
+	patches, err := createPatches(forkedRoot, path.Join(unforkPath, "base"))
+	if err != nil {
+		return errors.Wrap(err, "faield to create patches")
+	}
 
-	return nil
+	panic(fmt.Sprintf("%#v\n", patches))
+
+	// return nil
 }
 
 func renderChart(helmName string, namespace string, c *chart.Chart, templates []*chart.Template, values map[string]*chart.Value) (map[string]string, error) {
