@@ -38,7 +38,7 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 		Silent:              true,
 	}
 
-	if _, err := pull.Pull(fmt.Sprintf("helm://%s/%s", upstreamChartMatch.Repo, upstreamChartMatch.Name), pullOptions); err != nil {
+	if _, err := pull.Pull(fmt.Sprintf("helm://%s/%s@%s", upstreamChartMatch.Repo, upstreamChartMatch.Name, upstreamChartMatch.ChartVersion), pullOptions); err != nil {
 		return errors.Wrap(err, "failed to pull upstream")
 	}
 
