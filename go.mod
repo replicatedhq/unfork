@@ -5,6 +5,7 @@ go 1.12
 require (
 	cloud.google.com/go v0.38.0 // indirect
 	github.com/Masterminds/semver v1.4.2
+	github.com/ahmetalpbalkan/go-cursor v0.0.0-20131010032410-8136607ea412
 	github.com/chzyer/logex v1.1.11-0.20160617073814-96a4d311aa9b // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0

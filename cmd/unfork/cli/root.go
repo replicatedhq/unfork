@@ -3,10 +3,14 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path"
+	"path/filepath"
 	"strings"
+	"time"
 
 	ui "github.com/gizak/termui/v3"
 	"github.com/pkg/errors"
+	"github.com/replicatedhq/unfork/pkg/chartindex"
 	"github.com/replicatedhq/unfork/pkg/unforker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -36,6 +40,37 @@ them off of forks, back to upstream with kustomize patches.`,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
+				dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+				if err != nil {
+					return errors.Cause(err)
+				}
+				indexFile := path.Join(dir, "charts.json")
+				fi, err := os.Stat(indexFile)
+				fetchIndex := false
+				if os.IsNotExist(err) {
+					fmt.Println("\nBuilding a local index of available Helm charts. This is needed to find the best upstream, and will only take a few seconds")
+					fetchIndex = true
+				} else if err != nil {
+					return err
+				} else {
+					isOld := time.Now().Sub(fi.ModTime())
+					if isOld > time.Hour*24*14 {
+						fmt.Println("\nYour local index of available Helm charts is out of date. Updating them, this will only take a few seconds")
+						fetchIndex = true
+					}
+				}
+
+				if fetchIndex {
+					index := chartindex.ChartIndex{}
+					if err := index.Build(); err != nil {
+						return errors.Cause(err)
+					}
+
+					if err := index.Save(indexFile); err != nil {
+						return errors.Cause(err)
+					}
+				}
+
 				if err := ui.Init(); err != nil {
 					return errors.Wrap(err, "failed to init the ui")
 				}

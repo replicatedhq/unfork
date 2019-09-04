@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ahmetalpbalkan/go-cursor"
 	"k8s.io/helm/cmd/helm/search"
 	"k8s.io/helm/pkg/getter"
 	"k8s.io/helm/pkg/helm/environment"
@@ -37,7 +38,6 @@ func (i *ChartIndex) Build() error {
 
 	currentPage := 1
 
-	fmt.Printf("requesting repos from monocular\n")
 	for {
 		resp, err := http.Get(fmt.Sprintf("https://hub.kubeapps.com/api/chartsvc/v1/charts?size=%d&page=%d", kubeAppsPageSize, currentPage))
 		if err != nil {
@@ -103,7 +103,8 @@ func (i *ChartIndex) Build() error {
 }
 
 func queryRepoForChartAndAppVersions(repoName string, repoURI string) (map[string][]ChartVersion, error) {
-	fmt.Printf("getting version info for charts in repo %s (%s)\n", repoName, repoURI)
+	fmt.Printf("\r%s\r", cursor.ClearEntireLine())
+	fmt.Printf("getting version info for charts in repo %s (%s)", repoName, repoURI)
 	helmHome, err := ioutil.TempDir("", "unfork")
 	if err != nil {
 		return nil, err
