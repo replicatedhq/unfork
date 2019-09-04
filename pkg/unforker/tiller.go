@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/replicatedhq/unfork/pkg/k8sutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,20 +41,22 @@ func (u *Unforker) queryTillerForCharts(tillerPodName string, tillerNamespace st
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	localPort := 30000 + r.Intn(999)
 
-	// fmt.Println("connecting to tiller")
-	_, err := k8sutil.PortForward(u.kubecontext, localPort, 44134, tillerNamespace, tillerPodName)
+	config, err := u.configFlags.ToRESTConfig()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to convert kube flags to rest config")
 	}
-	// fmt.Println("connected to tiller")
 
-	// fmt.Println("requesting a list of all deployed releases from tiller")
+	_, err = k8sutil.PortForward(config, localPort, 44134, tillerNamespace, tillerPodName)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to port forward")
+	}
+
 	helmOptions := []helm.Option{helm.Host(fmt.Sprintf("localhost:%d", localPort)), helm.ConnectTimeout(5)}
 	helmClient := helm.NewClient(helmOptions...)
 	listReleaseOptions := helm.ReleaseListStatuses([]release.Status_Code{release.Status_DEPLOYED})
 	response, err := helmClient.ListReleases(listReleaseOptions)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to list releases")
 	}
 
 	tillerCharts := make([]*LocalChart, 0)
@@ -67,6 +70,8 @@ func (u *Unforker) queryTillerForCharts(tillerPodName string, tillerNamespace st
 			Keywords:     tillerRelease.GetChart().GetMetadata().GetKeywords(),
 			Templates:    tillerRelease.GetChart().GetTemplates(),
 			Values:       tillerRelease.GetChart().GetValues().GetValues(),
+			Chart:        tillerRelease.GetChart(),
+			Namespace:    "todo",
 		}
 
 		tillerCharts = append(tillerCharts, &chart)
