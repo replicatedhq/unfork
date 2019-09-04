@@ -2,11 +2,14 @@ package unforker
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/replicatedhq/kots/pkg/pull"
+	kotsutil "github.com/replicatedhq/kots/pkg/util"
 	"github.com/replicatedhq/unfork/pkg/chartindex"
 	"github.com/replicatedhq/unfork/pkg/util"
 	"k8s.io/helm/pkg/chartutil"
@@ -37,31 +40,27 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 		return errors.Wrap(err, "failed to pull upstream")
 	}
 
-	// upstreamChart, err := fetchUpstreamChart(getKnownHelmRepoURI(upstreamChartMatch.Repo), upstreamChartMatch.Name, upstreamChartMatch.ChartVersion)
-	// if err != nil {
-	// 	return errors.Wrap(err, "failed to fetch upstream chart")
-	// }
-	// upstreamRoot := path.Join(util.HomeDir(), localChart.HelmName, "upstream")
-	// if err := os.MkdirAll(upstreamRoot, 0755); err != nil {
-	// 	return errors.Wrap(err, "failed to create upstream dir")
-	// }
-	// for name, content := range upstreamChart {
-	// 	f := path.Join(upstreamRoot, name)
-	// 	d, _ := path.Split(f)
-	// 	if _, err := os.Stat(d); os.IsNotExist(err) {
-	// 		if err := os.MkdirAll(d, 0755); err != nil {
-	// 			return errors.Wrap(err, "failed to create upstream file dir")
-	// 		}
-	// 	}
-	// 	if err := ioutil.WriteFile(f, content, 0644); err != nil {
-	// 		return errors.Wrap(err, "failed to write file")
-	// 	}
-	// }
-
-	// forkedManifests, err := renderChart(localChart.HelmName, localChart.Namespace, localChart.Chart, localChart.Templates, localChart.Values)
-	// if err != nil {
-	// 	return errors.Wrap(err, "failed to render local chart")
-	// }
+	forkedRoot, err := ioutil.TempDir("", "unfork")
+	if err != nil {
+		return errors.Wrap(err, "failed to create forked root")
+	}
+	// defer os.RemoveAll(forkedRoot)
+	forkedManifests, err := renderChart(localChart.HelmName, localChart.Namespace, localChart.Chart, localChart.Templates, localChart.Values)
+	if err != nil {
+		return errors.Wrap(err, "failed to render forked chart")
+	}
+	for name, content := range forkedManifests {
+		f := path.Join(forkedRoot, name)
+		d, _ := path.Split(f)
+		if _, err := os.Stat(d); os.IsNotExist(err) {
+			if err := os.MkdirAll(d, 0755); err != nil {
+				return errors.Wrap(err, "failed to create forked file dir")
+			}
+		}
+		if err := ioutil.WriteFile(f, []byte(content), 0644); err != nil {
+			return errors.Wrap(err, "failed to write file")
+		}
+	}
 
 	return nil
 }
@@ -85,5 +84,26 @@ func renderChart(helmName string, namespace string, c *chart.Chart, templates []
 		return nil, errors.Wrap(err, "failed to render chart")
 	}
 
-	return rendered, nil
+	// Remove common prefixes from these files to make it easier to manage later
+	var commonPrefix []string
+
+	for filename, _ := range rendered {
+		d, _ := path.Split(filename)
+		dirs := strings.Split(d, string(os.PathSeparator))
+		if commonPrefix == nil {
+			commonPrefix = dirs
+		}
+		commonPrefix = kotsutil.CommonSlicePrefix(commonPrefix, dirs)
+	}
+
+	cleanedRendered := map[string]string{}
+	for filename, content := range rendered {
+		d, f := path.Split(filename)
+		d2 := strings.Split(d, string(os.PathSeparator))
+
+		d2 = d2[len(commonPrefix):]
+		cleanedRendered[path.Join(path.Join(d2...), f)] = content
+	}
+
+	return cleanedRendered, nil
 }
