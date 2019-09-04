@@ -3,19 +3,21 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	ui "github.com/gizak/termui/v3"
+	"github.com/pkg/errors"
 	"github.com/replicatedhq/unfork/pkg/unforker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
 var (
 	currentPage = "home"
 
-	unforkClient *unforker.Unforker
+	unforkClient          *unforker.Unforker
+	kubernetesConfigFlags *genericclioptions.ConfigFlags
 )
 
 type UnforkUI struct {
@@ -33,24 +35,27 @@ them off of forks, back to upstream with kustomize patches.`,
 			_ = viper.BindPFlags(cmd.Flags())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			v := viper.GetViper()
-
 			if len(args) == 0 {
 				if err := ui.Init(); err != nil {
-					return err
+					return errors.Wrap(err, "failed to init the ui")
 				}
 				defer ui.Close()
 
 				uiCh := make(chan unforker.UIEvent)
 
-				u, err := unforker.NewUnforker(v.GetString("kubecontext"), uiCh)
+				u, err := unforker.NewUnforker(kubernetesConfigFlags, uiCh)
 				if err != nil {
-					return err
+					return errors.Wrap(err, "failed to create unforker")
 				}
 				unforkClient = u
 
 				go func() {
-					_ = unforkClient.StartDiscovery()
+					err := unforkClient.StartDiscovery()
+					if err != nil {
+						ui.Close()
+						fmt.Printf("%s\n", errors.Cause(err))
+						os.Exit(1)
+					}
 				}()
 
 				unforkUI := UnforkUI{
@@ -59,10 +64,10 @@ them off of forks, back to upstream with kustomize patches.`,
 				}
 
 				if err := unforkUI.render(); err != nil {
-					return err
+					return errors.Wrap(err, "failed to render")
 				}
 				if err := unforkUI.eventLoop(); err != nil {
-					return err
+					return errors.Wrap(err, "error in event loop")
 				}
 
 				return nil
@@ -73,10 +78,10 @@ them off of forks, back to upstream with kustomize patches.`,
 
 	cobra.OnInitialize(initConfig)
 
-	cmd.AddCommand(IndexCmd())
+	kubernetesConfigFlags = genericclioptions.NewConfigFlags(false)
+	kubernetesConfigFlags.AddFlags(cmd.Flags())
 
-	cmd.Flags().String("namespace", "default", "namespace the collectors can be found in")
-	cmd.Flags().String("kubecontext", filepath.Join(homeDir(), ".kube", "config"), "the kubecontext to use when connecting")
+	cmd.AddCommand(IndexCmd())
 
 	_ = viper.BindPFlags(cmd.Flags())
 
@@ -96,17 +101,10 @@ func initConfig() {
 	viper.AutomaticEnv()
 }
 
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return os.Getenv("USERPROFILE") // windows
-}
-
 func (u *UnforkUI) render() error {
 	if currentPage == "home" {
 		if err := u.home.render(); err != nil {
-			return err
+			return errors.Wrap(err, "failed to render")
 		}
 	}
 
@@ -118,7 +116,7 @@ func (u *UnforkUI) eventLoop() error {
 		if currentPage == "home" {
 			exit, err := u.home.handleEvent(e)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "failed to handle event")
 			}
 			if exit {
 				return nil

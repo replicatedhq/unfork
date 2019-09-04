@@ -175,6 +175,7 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 		}
 	case "<Enter>":
 		if h.showUnfork {
+			h.isUnforking = true
 			localChart := h.localCharts[h.selectedChartIndex-1]
 			upstreamChart := h.upstreamMatches[h.selectedUpstreamIndex-1]
 

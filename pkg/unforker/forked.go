@@ -18,4 +18,6 @@ type LocalChart struct {
 	Keywords     []string
 	Templates    []*chart.Template
 	Values       map[string]*chart.Value
+	Chart        *chart.Chart
+	Namespace    string
 }

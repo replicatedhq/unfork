@@ -5,27 +5,32 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
-	// "time"
 
-	"k8s.io/client-go/tools/clientcmd"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 )
 
-func PortForward(kubeContext string, localPort int, remotePort int, namespace string, podName string) (chan struct{}, error) {
-	// port forward
-	config, err := clientcmd.BuildConfigFromFlags("", kubeContext)
-	if err != nil {
-		return nil, err
-	}
+func PortForward(config *restclient.Config, localPort int, remotePort int, namespace string, podName string) (chan struct{}, error) {
 	roundTripper, upgrader, err := spdy.RoundTripperFor(config)
 	if err != nil {
 		return nil, err
 	}
 	path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", namespace, podName)
-	hostIP := strings.TrimLeft(config.Host, "htps:/")
-	serverURL := url.URL{Scheme: "http", Path: path, Host: hostIP}
+	scheme := ""
+	hostIP := config.Host
+
+	u, err := url.Parse(config.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	if u.Scheme == "http" || u.Scheme == "https" {
+		scheme = u.Scheme
+		hostIP = u.Host
+	}
+
+	serverURL := url.URL{Scheme: scheme, Path: path, Host: hostIP}
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: roundTripper}, http.MethodPost, &serverURL)
 
 	stopChan, readyChan := make(chan struct{}, 1), make(chan struct{}, 1)
@@ -46,29 +51,13 @@ func PortForward(kubeContext string, localPort int, remotePort int, namespace st
 		}
 	}()
 
-	go func() {
+	go func() error {
 		if err = forwarder.ForwardPorts(); err != nil { // Locks until stopChan is closed.
 			panic(err)
 		}
+
+		return nil
 	}()
-
-	// // Block until the new service is responding, limited to (math) seconds
-	// quickClient := &http.Client{
-	// 	Timeout: time.Millisecond * 200,
-	// }
-
-	// start := time.Now()
-	// for {
-	// 	response, err := quickClient.Get(fmt.Sprintf("http://localhost:%d", localPort))
-	// 	if err == nil && response.StatusCode == http.StatusOK {
-	// 		break
-	// 	}
-	// 	if time.Now().Sub(start) > time.Duration(time.Second*5) {
-	// 		return nil, err
-	// 	}
-
-	// 	time.Sleep(time.Millisecond * 100)
-	// }
 
 	return stopChan, nil
 }

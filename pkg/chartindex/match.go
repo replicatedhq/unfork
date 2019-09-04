@@ -21,14 +21,14 @@ func FindBestUpstreamMatches(chartName string, chartVersion string, appVersion s
 		return nil, err
 	}
 
-	for _, chart := range chartIndex.charts {
-		if chart.Name == chartName {
+	for _, indexChart := range chartIndex.charts {
+		if indexChart.Name == chartName {
 			var chartMatch *ChartMatch
 
 			highestChartVersion := semver.MustParse("0.0.0")
 			highestAppVersion := ""
 
-			for _, version := range chart.Versions {
+			for _, version := range indexChart.Versions {
 				parsedChartVersion := semver.MustParse(version.ChartVersion)
 				if parsedChartVersion.GreaterThan(highestChartVersion) {
 					highestChartVersion = parsedChartVersion
@@ -39,8 +39,8 @@ func FindBestUpstreamMatches(chartName string, chartVersion string, appVersion s
 					if version.AppVersion == appVersion {
 
 						chartMatch = &ChartMatch{
-							Repo:         chart.Repo,
-							Name:         chart.Name,
+							Repo:         indexChart.Repo,
+							Name:         indexChart.Name,
 							ChartVersion: version.ChartVersion,
 							AppVersion:   version.AppVersion,
 						}
