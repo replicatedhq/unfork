@@ -1,0 +1,63 @@
+apiVersion: krew.googlecontainertools.github.com/v1alpha2
+kind: Plugin
+metadata:
+  name: unfork
+spec:
+  version: "v0.1.0"
+  platforms:
+  - selector:
+      matchLabels:
+        os: linux
+        arch: amd64
+    uri: https://github.com/replicatedhq/unfork/releases/download/v0.1.0/unfork_linux_amd64.tar.gz
+    sha256: "b8676c365599c4f7572eb812cc1a3e9f81b5f0b11207d36c5f3e6045473cb3d4"
+    files:
+    - from: "./unfork"
+      to: "."
+    bin: "unfork"
+  - selector:
+      matchLabels:
+        os: darwin
+        arch: amd64
+    uri: https://github.com/replicatedhq/unfork/releases/download/v0.1.0/unfork_darwin_amd64.tar.gz
+    sha256: "f42e8f085dd46e01ecba78a871bb61d30367262a78ae47d993d8fbaf4b51d930"
+    files:
+    - from: "./unfork"
+      to: "."
+    bin: "unfork"
+  - selector:
+      matchLabels:
+        os: windows
+        arch: amd64
+    uri: https://github.com/replicatedhq/unfork/releases/download/v0.1.0/unfork_windows_amd64.zip
+    sha256: "cd6a2c0be0fea04736377bdfaab60f8903dd5e4d2cbc9ad5e191d25fb8ab5f75"
+    files:
+    - from: "/unfork.exe"
+      to: "."
+    bin: "unfork.exe"
+  shortDescription: Finds forked Helm Charts in your cluster, extract Kustomize patches.
+  homepage: https://github.com/replicatedhq/unfork
+  caveats: |
+    Usage:
+      $ kubectl unfork
+
+    For additional options:
+      $ kubectl unfork --help
+
+  description: |
+    This plugin will:
+      - Connect to your Kubernetes cluster and search for a Helm Tiller pod.
+      - Connect to your Tiller using the Helm GRPC API and query to receive a
+        list of all installed Helm Chart.
+      - Meanwhile, Unfork will download a list of all known Helm Charts from
+        Helm Monocular.
+      - Comparing your Helm charts with the Monocular index, Unfork will
+        attempt to determine which upstream your fork is from.
+      - Once you've confirmed this, Unfork will convert your custom changes into
+        Kustomize patches and resources.
+      - You can now update the Helm chart to the latest version, and re-apply
+        your patches.
+
+    Note: Unfork does not make any changes to the applications running in
+          your cluster. Unfork only needs access to you cluster in order to
+          port-forward and gain access to Tiller.
