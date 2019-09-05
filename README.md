@@ -5,7 +5,7 @@ A kubectl plugin to find forked helm charts running in a cluster, extract [Kusto
 Usage:
 
 ```
-kubectl krew install unfokr
+kubectl krew install unfork
 kubectl unfork
 ```
 
