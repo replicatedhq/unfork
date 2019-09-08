@@ -74,7 +74,7 @@ func (i *ChartIndex) Build() error {
 
 		versions, err := queryRepoForChartAndAppVersions(chart.Attributes.Repo.Name, chart.Attributes.Repo.URL)
 		if err != nil {
-			fmt.Printf("failed to fetch charts in repo %s, error was %#v\n", chart.Attributes.Repo.Name, err)
+			//			fmt.Printf("failed to fetch charts in repo %s, error was %#v\n", chart.Attributes.Repo.Name, err)
 			continue
 		}
 
