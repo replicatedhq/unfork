@@ -10,13 +10,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/helm/pkg/helm"
 	"k8s.io/helm/pkg/proto/hapi/release"
 )
 
-func (u *Unforker) getTillerPodName() (string, string, error) {
+func getTillerPodName(client *kubernetes.Clientset) (string, string, error) {
 	selector := labels.Set{"app": "helm", "name": "tiller"}
-	pods, err := u.client.CoreV1().Pods("kube-system").List(metav1.ListOptions{LabelSelector: selector.AsSelector().String()})
+	pods, err := client.CoreV1().Pods("kube-system").List(metav1.ListOptions{LabelSelector: selector.AsSelector().String()})
 	if err != nil {
 		return "", "", err
 	}
