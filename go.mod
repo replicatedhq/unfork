@@ -9,15 +9,9 @@ require (
 	github.com/chzyer/logex v1.1.11-0.20160617073814-96a4d311aa9b // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
-	github.com/gophercloud/gophercloud v0.1.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
-	github.com/hashicorp/go-immutable-radix v1.0.0 // indirect
-	github.com/hashicorp/go-sockaddr v1.0.0 // indirect
-	github.com/hashicorp/serf v0.8.2-0.20171022020050-c20a0b1b1ea9 // indirect
-	github.com/miekg/dns v1.0.14 // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/replicatedhq/kots v0.5.1-0.20190904162055-2988cce69f1c
-	github.com/smartystreets/goconvey v0.0.0-20181108003508-044398e4856c // indirect
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.3.0

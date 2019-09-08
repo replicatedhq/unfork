@@ -35,6 +35,8 @@ func RootCmd() *cobra.Command {
 		Short: "Convert forked Helm charts to Kustomize overlays",
 		Long: `A kubectl plugin to find forked helm charts running in a cluster and migrate
 them off of forks, back to upstream with kustomize patches.`,
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		PreRun: func(cmd *cobra.Command, args []string) {
 			_ = viper.BindPFlags(cmd.Flags())
 		},
@@ -69,6 +71,14 @@ them off of forks, back to upstream with kustomize patches.`,
 					if err := index.Save(indexFile); err != nil {
 						return errors.Cause(err)
 					}
+				}
+
+				hasTiller, err := unforker.HasTiller(kubernetesConfigFlags)
+				if err != nil {
+					return errors.Wrap(err, "failed to connect to cluster looking for tiller")
+				}
+				if !hasTiller {
+					return errors.New("Unable to find a ready Tiller pod in the current cluster. Do you need to set a --kubeconfig?")
 				}
 
 				if err := ui.Init(); err != nil {
