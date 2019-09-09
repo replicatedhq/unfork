@@ -2,8 +2,14 @@
 export GO111MODULE=on
 export GOPROXY=https://proxy.golang.org
 
+SHELL := /bin/bash -o pipefail
+SRC = $(shell find pkg cmd -name "*.go")
+
 .PHONY: test
 test:
+	go test ./pkg/... ./cmd/...
+
+cover.out: $(SRC)
 	go test ./pkg/... ./cmd/... -coverprofile cover.out
 
 .PHONY: unfork
