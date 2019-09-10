@@ -58,18 +58,6 @@ func (h *Home) render() error {
 
 	drawTitle()
 
-	if h.needsOverwritePermission && h.isUnforking {
-		overwritePrompt := widgets.NewParagraph()
-		overwritePrompt.SetRect(0, 3, termWidth, termHeight)
-
-		localChart := h.localCharts[h.selectedChartIndex-1]
-		unforkPath := path.Join(util.HomeDir(), localChart.HelmName)
-
-		overwritePrompt.Text = fmt.Sprintf("Should %q be overwritten? (y/n)", unforkPath)
-		ui.Render(overwritePrompt)
-		return nil
-	}
-
 	border := widgets.NewParagraph()
 	border.SetRect(termWidth/2-2, 3, termWidth, termHeight-1)
 	ui.Render(border)
@@ -90,6 +78,19 @@ func (h *Home) render() error {
 
 	if h.showUnfork {
 		h.drawUnfork()
+	}
+
+	if h.needsOverwritePermission && h.isUnforking {
+		localChart := h.localCharts[h.selectedChartIndex-1]
+		unforkPath := path.Join(util.HomeDir(), localChart.HelmName)
+		overwritePromptText := fmt.Sprintf(" Should %q be overwritten?\n (y/n) ", unforkPath)
+
+		overwritePrompt := widgets.NewParagraph()
+		overwritePrompt.SetRect(termWidth/2-(len(overwritePromptText)/2), termHeight/2-2, termWidth/2+(len(overwritePromptText)/2), termHeight/2+2)
+
+		overwritePrompt.Text = overwritePromptText
+		ui.Render(overwritePrompt)
+		return nil
 	}
 
 	if !h.isListening {
