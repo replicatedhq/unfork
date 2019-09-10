@@ -35,6 +35,7 @@ type Home struct {
 	showUnfork               bool
 	isUnforking              bool
 	needsOverwritePermission bool
+	dialogMessage            string
 
 	focusPane string
 }
@@ -80,17 +81,23 @@ func (h *Home) render() error {
 		h.drawUnfork()
 	}
 
-	if h.needsOverwritePermission && h.isUnforking {
-		localChart := h.localCharts[h.selectedChartIndex-1]
-		unforkPath := path.Join(util.HomeDir(), localChart.HelmName)
-		overwritePromptText := fmt.Sprintf(" Should %q be overwritten?\n (y/n) ", unforkPath)
-
+	// find the minimum width of rectangle that will fit the text on one line
+	// TODO: handle multiline
+	if h.dialogMessage != "" {
 		overwritePrompt := widgets.NewParagraph()
-		overwritePrompt.SetRect(termWidth/2-(len(overwritePromptText)/2), termHeight/2-2, termWidth/2+(len(overwritePromptText)/2), termHeight/2+2)
+		promptY := termHeight/2 - 2
+		promptLen := len(h.dialogMessage)
+		promptXMin := termWidth/2 - (promptLen / 2)
+		promptXMax := termWidth/2 + (promptLen / 2)
+		overwritePrompt.SetRect(promptXMin, promptY, promptXMax, promptY+3)
+		for overwritePrompt.Inner.Dx() < promptLen {
+			promptXMin--
+			promptXMax++
+			overwritePrompt.SetRect(promptXMin, promptY, promptXMax, promptY+3)
+		}
 
-		overwritePrompt.Text = overwritePromptText
+		overwritePrompt.Text = h.dialogMessage
 		ui.Render(overwritePrompt)
-		return nil
 	}
 
 	if !h.isListening {
@@ -125,6 +132,8 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 	case "<Escape>", "q", "<C-c>":
 		if h.showUnfork {
 			h.showUnfork = false
+			h.needsOverwritePermission = false
+			h.dialogMessage = ""
 			ui.Clear()
 			err := h.render()
 			if err != nil {
@@ -140,7 +149,7 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 			return false, errors.Wrapf(err, "render event %q", e.ID)
 		}
 	case "<Down>", "s":
-		if !h.showUnfork && !h.needsOverwritePermission {
+		if !h.showUnfork && !h.isUnforking {
 			if h.focusPane == "charts" {
 				if h.selectedChartIndex == -1 {
 					h.selectedChartIndex = 1
@@ -157,7 +166,7 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 			}
 		}
 	case "<Up>", "w":
-		if !h.showUnfork && !h.needsOverwritePermission {
+		if !h.showUnfork && !h.isUnforking {
 			if h.focusPane == "charts" {
 				if h.selectedChartIndex == -1 {
 					h.selectedChartIndex = 1
@@ -174,7 +183,7 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 			}
 		}
 	case "<Right>", "d":
-		if !h.showUnfork && !h.needsOverwritePermission {
+		if !h.showUnfork && !h.isUnforking {
 			if h.focusPane == "charts" {
 				h.focusPane = "upstreams"
 				ui.Clear()
@@ -182,7 +191,7 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 			}
 		}
 	case "<Left>", "a":
-		if !h.showUnfork && !h.needsOverwritePermission {
+		if !h.showUnfork && !h.isUnforking {
 			if h.focusPane == "upstreams" {
 				h.focusPane = "charts"
 				ui.Clear()
@@ -191,25 +200,24 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 			}
 		}
 	case "<Enter>":
-		if h.showUnfork {
+		if h.showUnfork && !h.isUnforking {
 			h.isUnforking = true
-			localChart := h.localCharts[h.selectedChartIndex-1]
-			upstreamChart := h.upstreamMatches[h.selectedUpstreamIndex-1]
 
-			unforkPath := path.Join(util.HomeDir(), localChart.HelmName)
+			unforkPath := h.findUnforkPath()
 			_, err := os.Stat(unforkPath)
 			if !os.IsNotExist(err) {
 				// dir exists, prompt for user to choose whether to use a different name or overwrite
 				h.needsOverwritePermission = true
+				h.dialogMessage = fmt.Sprintf(" Should %q be overwritten? (y/n) ", unforkPath)
 				ui.Clear()
 				h.render()
 			}
 			if !h.needsOverwritePermission {
-				if err := unforker.Unfork(localChart, upstreamChart); err != nil {
+				if err := h.doUnfork(); err != nil {
 					panic(err)
 				}
 			}
-		} else {
+		} else if !h.isUnforking {
 			if h.focusPane == "upstreams" {
 				if h.selectedUpstreamIndex == 0 {
 					break
@@ -224,15 +232,12 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 		if h.needsOverwritePermission {
 			h.needsOverwritePermission = false
 			// overwrite dir and run unfork
-			localChart := h.localCharts[h.selectedChartIndex-1]
-			upstreamChart := h.upstreamMatches[h.selectedUpstreamIndex-1]
-			unforkPath := path.Join(util.HomeDir(), localChart.HelmName)
-
+			unforkPath := h.findUnforkPath()
 			if err := os.RemoveAll(unforkPath); err != nil {
 				panic(err)
 			}
 
-			if err := unforker.Unfork(localChart, upstreamChart); err != nil {
+			if err := h.doUnfork(); err != nil {
 				panic(err)
 			}
 		}
@@ -240,15 +245,41 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 		if h.needsOverwritePermission {
 			h.needsOverwritePermission = false
 			// don't overwrite dir, just run unfork
-			localChart := h.localCharts[h.selectedChartIndex-1]
-			upstreamChart := h.upstreamMatches[h.selectedUpstreamIndex-1]
-			if err := unforker.Unfork(localChart, upstreamChart); err != nil {
+
+			if err := h.doUnfork(); err != nil {
 				panic(err)
 			}
 		}
 	}
 
 	return false, nil
+}
+
+func (h *Home) doUnfork() error {
+
+	h.dialogMessage = "unforking..."
+	ui.Clear()
+	h.render()
+
+	localChart := h.localCharts[h.selectedChartIndex-1]
+	upstreamChart := h.upstreamMatches[h.selectedUpstreamIndex-1]
+
+	unforkedDir, err := unforker.Unfork(localChart, upstreamChart)
+	if err != nil {
+		return err
+	}
+
+	h.isUnforking = false
+	h.dialogMessage = fmt.Sprintf(" Unforked to %q. Press 'q' to return to the main screen ", unforkedDir)
+	ui.Clear()
+	h.render()
+
+	return nil
+}
+
+func (h *Home) findUnforkPath() string {
+	localChart := h.localCharts[h.selectedChartIndex-1]
+	return path.Join(util.HomeDir(), localChart.HelmName)
 }
 
 func (h *Home) highlightChart() error {
