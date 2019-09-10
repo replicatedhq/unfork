@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path"
 
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/replicatedhq/unfork/pkg/chartindex"
 	"github.com/replicatedhq/unfork/pkg/unforker"
+	"github.com/replicatedhq/unfork/pkg/util"
 )
 
 var (
@@ -27,10 +30,11 @@ type Home struct {
 	localCharts     []*unforker.LocalChart
 	upstreamMatches []chartindex.ChartMatch
 
-	selectedChartIndex    int
-	selectedUpstreamIndex int
-	showUnfork            bool
-	isUnforking           bool
+	selectedChartIndex       int
+	selectedUpstreamIndex    int
+	showUnfork               bool
+	isUnforking              bool
+	needsOverwritePermission bool
 
 	focusPane string
 }
@@ -53,6 +57,18 @@ func (h *Home) render() error {
 	termWidth, termHeight := ui.TerminalDimensions()
 
 	drawTitle()
+
+	if h.needsOverwritePermission && h.isUnforking {
+		overwritePrompt := widgets.NewParagraph()
+		overwritePrompt.SetRect(0, 3, termWidth, termHeight)
+
+		localChart := h.localCharts[h.selectedChartIndex-1]
+		unforkPath := path.Join(util.HomeDir(), localChart.HelmName)
+
+		overwritePrompt.Text = fmt.Sprintf("Should %q be overwritten? (y/n)", unforkPath)
+		ui.Render(overwritePrompt)
+		return nil
+	}
 
 	border := widgets.NewParagraph()
 	border.SetRect(termWidth/2-2, 3, termWidth, termHeight-1)
@@ -179,8 +195,18 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 			localChart := h.localCharts[h.selectedChartIndex-1]
 			upstreamChart := h.upstreamMatches[h.selectedUpstreamIndex-1]
 
-			if err := unforker.Unfork(localChart, upstreamChart); err != nil {
-				panic(err)
+			unforkPath := path.Join(util.HomeDir(), localChart.HelmName)
+			_, err := os.Stat(unforkPath)
+			if !os.IsNotExist(err) {
+				// dir exists, prompt for user to choose whether to use a different name or overwrite
+				h.needsOverwritePermission = true
+				ui.Clear()
+				h.render()
+			}
+			if !h.needsOverwritePermission {
+				if err := unforker.Unfork(localChart, upstreamChart); err != nil {
+					panic(err)
+				}
 			}
 		} else {
 			if h.focusPane == "upstreams" {
@@ -191,6 +217,32 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 				h.showUnfork = true
 				ui.Clear()
 				h.render()
+			}
+		}
+	case "y", "Y":
+		if h.needsOverwritePermission {
+			h.needsOverwritePermission = false
+			// overwrite dir and run unfork
+			localChart := h.localCharts[h.selectedChartIndex-1]
+			upstreamChart := h.upstreamMatches[h.selectedUpstreamIndex-1]
+			unforkPath := path.Join(util.HomeDir(), localChart.HelmName)
+
+			if err := os.RemoveAll(unforkPath); err != nil {
+				panic(err)
+			}
+
+			if err := unforker.Unfork(localChart, upstreamChart); err != nil {
+				panic(err)
+			}
+		}
+	case "n", "N":
+		if h.needsOverwritePermission {
+			h.needsOverwritePermission = false
+			// don't overwrite dir, just run unfork
+			localChart := h.localCharts[h.selectedChartIndex-1]
+			upstreamChart := h.upstreamMatches[h.selectedUpstreamIndex-1]
+			if err := unforker.Unfork(localChart, upstreamChart); err != nil {
+				panic(err)
 			}
 		}
 	}

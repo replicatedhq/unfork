@@ -25,7 +25,7 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 	unforkPath := path.Join(util.HomeDir(), localChart.HelmName)
 	_, err := os.Stat(unforkPath)
 	if !os.IsNotExist(err) {
-		// dir exists, uverwriting is a TODO
+		// dir exists, using a different name is a TODO
 		return errors.Errorf("path %q already exists or cannot open", path.Join(util.HomeDir(), localChart.HelmName))
 	}
 
