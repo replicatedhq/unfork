@@ -298,7 +298,7 @@ func (h *Home) doUnfork() error {
 
 func (h *Home) findUnforkPath() string {
 	localChart := h.localCharts[h.selectedChartIndex-1]
-	return path.Join(util.HomeDir(), localChart.HelmName)
+	return path.Join(util.HomeDir(), "unfork", localChart.ChartName)
 }
 
 func (h *Home) highlightChart() error {
