@@ -140,7 +140,7 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 			return false, errors.Wrapf(err, "render event %q", e.ID)
 		}
 	case "<Down>", "s":
-		if !h.showUnfork {
+		if !h.showUnfork && !h.needsOverwritePermission {
 			if h.focusPane == "charts" {
 				if h.selectedChartIndex == -1 {
 					h.selectedChartIndex = 1
@@ -157,7 +157,7 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 			}
 		}
 	case "<Up>", "w":
-		if !h.showUnfork {
+		if !h.showUnfork && !h.needsOverwritePermission {
 			if h.focusPane == "charts" {
 				if h.selectedChartIndex == -1 {
 					h.selectedChartIndex = 1
@@ -174,7 +174,7 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 			}
 		}
 	case "<Right>", "d":
-		if !h.showUnfork {
+		if !h.showUnfork && !h.needsOverwritePermission {
 			if h.focusPane == "charts" {
 				h.focusPane = "upstreams"
 				ui.Clear()
@@ -182,7 +182,7 @@ func (h *Home) handleEvent(e ui.Event) (bool, error) {
 			}
 		}
 	case "<Left>", "a":
-		if !h.showUnfork {
+		if !h.showUnfork && !h.needsOverwritePermission {
 			if h.focusPane == "upstreams" {
 				h.focusPane = "charts"
 				ui.Clear()
