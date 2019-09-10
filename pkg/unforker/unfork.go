@@ -20,13 +20,29 @@ import (
 	kustomizetypes "sigs.k8s.io/kustomize/v3/pkg/types"
 )
 
+// Unfork creates a kustomize overlay that generates localChart when applied to upstreamChart
 func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) error {
 	// write this out to a replicatedhq/kots compatible structure
 	unforkPath := path.Join(util.HomeDir(), localChart.HelmName)
 	_, err := os.Stat(unforkPath)
 	if !os.IsNotExist(err) {
-		// dir exists, using a different name is a TODO
-		return errors.Errorf("path %q already exists or cannot open", path.Join(util.HomeDir(), localChart.HelmName))
+
+		intSuffix := 1
+		foundWorkingPath := false
+		for intSuffix < 100 && !foundWorkingPath {
+			newUnforkPath := fmt.Sprintf("%s-%d", unforkPath, intSuffix)
+			_, err = os.Stat(newUnforkPath)
+			if os.IsNotExist(err) {
+				unforkPath = newUnforkPath
+				foundWorkingPath = true
+			} else {
+				intSuffix++
+			}
+		}
+
+		if !foundWorkingPath {
+			return errors.Errorf("path %q and suffixes ('-1', '-2' ... '-99') already exist or cannot open", unforkPath)
+		}
 	}
 
 	pullOptions := pull.PullOptions{
