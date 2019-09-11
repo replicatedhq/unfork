@@ -20,13 +20,30 @@ import (
 	kustomizetypes "sigs.k8s.io/kustomize/v3/pkg/types"
 )
 
-func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) error {
+// Unfork creates a kustomize overlay that generates localChart when applied to upstreamChart
+// returns the directory that was unforked to and an error
+func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) (string, error) {
 	// write this out to a replicatedhq/kots compatible structure
 	unforkPath := path.Join(util.HomeDir(), localChart.HelmName)
 	_, err := os.Stat(unforkPath)
 	if !os.IsNotExist(err) {
-		// dir exists, uverwriting is a TODO
-		return errors.Errorf("path %q already exists or cannot open", path.Join(util.HomeDir(), localChart.HelmName))
+
+		intSuffix := 1
+		foundWorkingPath := false
+		for intSuffix < 100 && !foundWorkingPath {
+			newUnforkPath := fmt.Sprintf("%s-%d", unforkPath, intSuffix)
+			_, err = os.Stat(newUnforkPath)
+			if os.IsNotExist(err) {
+				unforkPath = newUnforkPath
+				foundWorkingPath = true
+			} else {
+				intSuffix++
+			}
+		}
+
+		if !foundWorkingPath {
+			return "", errors.Errorf("path %q and suffixes ('-1', '-2' ... '-99') already exist or cannot open", unforkPath)
+		}
 	}
 
 	pullOptions := pull.PullOptions{
@@ -39,28 +56,28 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 	}
 
 	if _, err := pull.Pull(fmt.Sprintf("helm://%s/%s@%s", upstreamChartMatch.Repo, upstreamChartMatch.Name, upstreamChartMatch.ChartVersion), pullOptions); err != nil {
-		return errors.Wrap(err, "failed to pull upstream")
+		return "", errors.Wrap(err, "failed to pull upstream")
 	}
 
 	forkedRoot, err := ioutil.TempDir("", "unfork")
 	if err != nil {
-		return errors.Wrap(err, "failed to create forked root")
+		return "", errors.Wrap(err, "failed to create forked root")
 	}
 	// defer os.RemoveAll(forkedRoot)
 	forkedManifests, err := renderChart(localChart.HelmName, localChart.Namespace, localChart.Chart, localChart.Templates, localChart.Values)
 	if err != nil {
-		return errors.Wrap(err, "failed to render forked chart")
+		return "", errors.Wrap(err, "failed to render forked chart")
 	}
 	for name, content := range forkedManifests {
 		f := path.Join(forkedRoot, name)
 		d, _ := path.Split(f)
 		if _, err := os.Stat(d); os.IsNotExist(err) {
 			if err := os.MkdirAll(d, 0755); err != nil {
-				return errors.Wrap(err, "failed to create forked file dir")
+				return "", errors.Wrap(err, "failed to create forked file dir")
 			}
 		}
 		if err := ioutil.WriteFile(f, []byte(content), 0644); err != nil {
-			return errors.Wrap(err, "failed to write file")
+			return "", errors.Wrap(err, "failed to write file")
 		}
 	}
 
@@ -68,7 +85,7 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 	// write them to downstreams/unforked
 	resources, patches, err := createPatches(forkedRoot, path.Join(unforkPath, "base"))
 	if err != nil {
-		return errors.Wrap(err, "faield to create patches")
+		return "", errors.Wrap(err, "faield to create patches")
 	}
 
 	unforkPatchDir := path.Join(unforkPath, "overlays", "downstreams", "unforked")
@@ -80,12 +97,12 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 		d, f := path.Split(filePath)
 		if _, err := os.Stat(d); os.IsNotExist(err) {
 			if err := os.MkdirAll(d, 0755); err != nil {
-				return errors.Wrap(err, "failed to make dir")
+				return "", errors.Wrap(err, "failed to make dir")
 			}
 		}
 
 		if err := ioutil.WriteFile(path.Join(unforkPatchDir, filename), content, 0644); err != nil {
-			return errors.Wrap(err, "failed to write resource")
+			return "", errors.Wrap(err, "failed to write resource")
 		}
 
 		resourcesForKustomization = append(resourcesForKustomization, f)
@@ -96,12 +113,12 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 		d, f := path.Split(filePath)
 		if _, err := os.Stat(d); os.IsNotExist(err) {
 			if err := os.MkdirAll(d, 0755); err != nil {
-				return errors.Wrap(err, "failed to make dir")
+				return "", errors.Wrap(err, "failed to make dir")
 			}
 		}
 
 		if err := ioutil.WriteFile(path.Join(unforkPatchDir, filename), content, 0644); err != nil {
-			return errors.Wrap(err, "failed to write patch")
+			return "", errors.Wrap(err, "failed to write patch")
 		}
 
 		patchesForKustomization = append(patchesForKustomization, f)
@@ -109,7 +126,7 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 
 	k, err := kotsk8sutil.ReadKustomizationFromFile(path.Join(unforkPatchDir, "kustomization.yaml"))
 	if err != nil {
-		return errors.Wrap(err, "failed to read kustomization")
+		return "", errors.Wrap(err, "failed to read kustomization")
 	}
 
 	for _, f := range patchesForKustomization {
@@ -119,10 +136,10 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) er
 		k.Resources = append(k.Resources, r)
 	}
 	if err := kotsk8sutil.WriteKustomizationToFile(k, path.Join(unforkPatchDir, "kustomization.yaml")); err != nil {
-		return errors.Wrap(err, "failed to write kustomization")
+		return "", errors.Wrap(err, "failed to write kustomization")
 	}
 
-	return nil
+	return unforkPath, nil
 }
 
 func renderChart(helmName string, namespace string, c *chart.Chart, templates []*chart.Template, values map[string]*chart.Value) (map[string]string, error) {
