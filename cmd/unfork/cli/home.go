@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
@@ -81,19 +83,24 @@ func (h *Home) render() error {
 		h.drawUnfork()
 	}
 
-	// find the minimum width of rectangle that will fit the text on one line
-	// TODO: handle multiline
+	// find the minimum width of rectangle that will fit the text
 	if h.dialogMessage != "" {
 		overwritePrompt := widgets.NewParagraph()
-		promptY := termHeight/2 - 2
-		promptLen := len(h.dialogMessage)
-		promptXMin := termWidth/2 - (promptLen / 2)
-		promptXMax := termWidth/2 + (promptLen / 2)
-		overwritePrompt.SetRect(promptXMin, promptY, promptXMax, promptY+3)
-		for overwritePrompt.Inner.Dx() < promptLen {
-			promptXMin--
-			promptXMax++
-			overwritePrompt.SetRect(promptXMin, promptY, promptXMax, promptY+3)
+		lines := strings.Split(h.dialogMessage, "\n")
+
+		promptYMin := termHeight/2 - 2
+		promptYMax := termHeight/2 + len(lines)
+		promptXMin := termWidth/2 - 2
+		promptXMax := termWidth/2 + 2
+
+		overwritePrompt.SetRect(promptXMin, promptYMin, promptXMax, promptYMax)
+		for _, line := range lines {
+			lineLen := len(line)
+			for (overwritePrompt.Inner.Dx() < lineLen) && (promptXMax < termWidth-1) {
+				promptXMin--
+				promptXMax++
+				overwritePrompt.SetRect(promptXMin, promptYMin, promptXMax, promptYMax)
+			}
 		}
 
 		overwritePrompt.Text = h.dialogMessage
@@ -270,7 +277,19 @@ func (h *Home) doUnfork() error {
 	}
 
 	h.isUnforking = false
-	h.dialogMessage = fmt.Sprintf(" Unforked to %q. Press 'q' to return to the main screen ", unforkedDir)
+
+	unforkMessageTemplate := ` Your unforked Chart is available at %s. 
+
+ You can install the same version with: 
+ kubectl apply -k %s 
+
+ You can update to the latest version of %s with: 
+ kots pull helm://%s/%s 
+ from within %s. 
+ 
+ Press 'q' to exit. `
+
+	h.dialogMessage = fmt.Sprintf(unforkMessageTemplate, unforkedDir, filepath.Join(unforkedDir, "overlays", "downstreams", "unforked"), localChart.ChartName, upstreamChart.Repo, upstreamChart.Name, unforkedDir)
 	ui.Clear()
 	h.render()
 
