@@ -7,7 +7,7 @@ SRC = $(shell find pkg cmd -name "*.go")
 
 .PHONY: test
 test:
-	go test ./pkg/... ./cmd/...
+	go test -cover ./pkg/... ./cmd/...
 
 cover.out: $(SRC)
 	go test ./pkg/... ./cmd/... -coverprofile cover.out
