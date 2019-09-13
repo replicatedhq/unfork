@@ -127,6 +127,7 @@ them off of forks, back to upstream with kustomize patches.`,
 	kubernetesConfigFlags.AddFlags(cmd.Flags())
 
 	cmd.AddCommand(IndexCmd())
+	cmd.AddCommand(VersionCmd())
 
 	_ = viper.BindPFlags(cmd.Flags())
 

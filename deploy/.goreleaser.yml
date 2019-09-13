@@ -18,7 +18,7 @@ builds:
     main: cmd/unfork/main.go
     ldflags: -s -w
       -X github.com/replicatedhq/unfork/pkg/version.version={{.Version}}
-      -X github.com/replicatedhq/unfork/pkg/version.gitSHA={{.Commit}}
+      -X github.com/replicatedhq/unfork/pkg/version.gitSHA={{.FullCommit}}
       -X github.com/replicatedhq/unfork/pkg/version.buildTime={{.Date}}
       -extldflags "-static"
     flags: -tags netgo -installsuffix netgo
