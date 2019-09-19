@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -15,12 +14,17 @@ func VersionCmd() *cobra.Command {
 		Short: "Print the current version and exit",
 		Long:  `Print the current version and exit`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			build := version.GetBuild()
-			versionInfo, err := json.MarshalIndent(build, "", "    ")
+			// print basic version info
+			fmt.Printf("Replicated Unfork %s\n", version.Version())
+
+			// check if this is the latest release, and display possible upgrade instructions
+			isLatest, latestVer, err := version.IsLatestRelease()
 			if err != nil {
-				return err
+				fmt.Printf("\nUnable to check for newer releases: %s\n", err.Error())
+			} else if !isLatest {
+				fmt.Printf("\nVersion %s is available for unfork. To install updates, run\n  $ curl https://unfork.io/install | bash\n", latestVer)
 			}
-			fmt.Println(string(versionInfo))
+
 			return nil
 		},
 	}
