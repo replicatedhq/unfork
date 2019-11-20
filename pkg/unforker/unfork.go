@@ -63,7 +63,8 @@ func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) (s
 	if err != nil {
 		return "", errors.Wrap(err, "failed to create forked root")
 	}
-	// defer os.RemoveAll(forkedRoot)
+	defer os.RemoveAll(forkedRoot)
+
 	forkedManifests, err := renderChart(localChart.HelmName, localChart.Namespace, localChart.Chart, localChart.Templates, localChart.Values)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to render forked chart")

@@ -166,12 +166,6 @@ repositories: []`
 
 	chartAppVersions := make(map[string][]ChartVersion)
 	for _, result := range i.All() {
-		// dl := downloader.ChartDownloader{
-		// 	HelmHome: helmpath.Home(helmHome),
-		// 	Out:      os.Stdout,
-		// 	Getters:  getter.All(environment.EnvSettings{}),
-		// }
-
 		key := fmt.Sprintf("%s/%s", repoName, result.Chart.GetName())
 		versions, ok := chartAppVersions[key]
 		if !ok {
@@ -182,23 +176,6 @@ repositories: []`
 			AppVersion:   result.Chart.GetAppVersion(),
 		})
 		chartAppVersions[key] = versions
-
-		// archiveDir, err := ioutil.TempDir("", "archive")
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// defer os.RemoveAll(archiveDir)
-
-		// _, err = repo.FindChartInRepoURL(repoURI, result.Chart.GetName(), result.Chart.GetVersion(), "", "", "", getter.All(environment.EnvSettings{}))
-		// if err != nil {
-		// 	return nil, err
-		// }
-
-		// _, _, err = dl.DownloadTo(chartRef, result.Chart.GetVersion(), archiveDir)
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// chartAppVersions[result.Chart.GetVersion()] = result.Chart.GetAppVersion()
 	}
 
 	return chartAppVersions, nil
