@@ -24,7 +24,7 @@ import (
 // returns the directory that was unforked to and an error
 func Unfork(localChart *LocalChart, upstreamChartMatch chartindex.ChartMatch) (string, error) {
 	// write this out to a replicatedhq/kots compatible structure
-	unforkPath := path.Join(util.HomeDir(), localChart.HelmName)
+	unforkPath := path.Join(util.HomeDir(), "unfork", localChart.ChartName)
 	_, err := os.Stat(unforkPath)
 	if !os.IsNotExist(err) {
 
